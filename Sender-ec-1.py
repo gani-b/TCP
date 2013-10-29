@@ -39,13 +39,13 @@ class Sender(BasicSender.BasicSender):
             elif Checksum.validate_checksum(ack):
                 msg_type,seq_no,data,checksum=self.split_packet(ack)
                 if self.last_ack_num==0:
-                    self.last_ack_num=int(seq_no)
+                    self.last_ack_num=seq_no
                     self.last_ack=ack
-                    self.handle_new_ack(ack,int(seq_no))
-                elif int(seq_no)==self.last_ack_num:
-                    self.handle_dup_ack(ack,int(seq_no))
+                    self.handle_new_ack(ack)
+                elif seq_no==self.last_ack_num:
+                    self.handle_dup_ack(ack)
                 else:
-                    self.handle_new_ack(ack,int(seq_no))
+                    self.handle_new_ack(ack)
             else:
                 self.send(self.window[self.last_ack_num])
         self.seq_no=0
@@ -61,32 +61,40 @@ class Sender(BasicSender.BasicSender):
         
 
     def handle_timeout(self):
+        self.max_size=5
         for x in self.window.values():
+            msg_type,seq_no,data,checksum=self.split_packet(x)
             self.send(x)
 
-    def handle_new_ack(self, ack,seq_no):
-        if seq_no>self.last_ack_num:
-            self.last_ack_num=seq_no
-            self.last_ack=ack
-        for x in self.window.keys():
-            if x<int(seq_no):
-                self.window.pop(x,0)
+    def handle_new_ack(self, ack):
+        self.max_size+=1
+        msg_type,seq_no,data,checksum=self.split_packet(ack)
+        if Checksum.validate_checksum(ack):
+            if seq_no>self.last_ack_num:
+                self.last_ack_num=int(seq_no)
+                self.last_ack=ack
+            for x in self.window.keys():
+                if x<int(seq_no):
+                    self.window.pop(x,0)
 
-        while (not len(self.window)==self.max_size) and (not self.end): 
-            msg=self.infile.read(1372)
-            if msg=="":
-                msg_type='end'
-                packet=self.make_packet(msg_type,self.seq_no,msg)
-                self.end=True
-            else:
-                msg_type='data'
-                packet=self.make_packet(msg_type,self.seq_no,msg)
-                self.window[self.seq_no]=packet
-                self.send(packet)
-            self.seq_no+=1
+            while (not len(self.window)==self.max_size) and (not self.end): 
+                msg=self.infile.read(1300)
+                self.seq_no+=1
+                if msg=="":
+                    msg_type='end'
+                    packet=self.make_packet(msg_type,self.seq_no,msg)
+                    self.end=True
+                else:
+                    msg_type='data'
+                    packet=self.make_packet(msg_type,self.seq_no,msg)
+                    self.window[self.seq_no]=packet
+                    self.send(packet)
 
-    def handle_dup_ack(self, ack,seq_no):
-        self.send(self.window[seq_no])
+    def handle_dup_ack(self, ack):
+        self.max_size-=1
+        msg_type,seq_no,data,checksum=self.split_packet(ack)
+        if Checksum.validate_checksum(ack):
+            self.send(self.window[int(seq_no)])
 
     def log(self, msg):
         if self.debug:
