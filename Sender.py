@@ -49,7 +49,7 @@ class Sender(BasicSender.BasicSender):
             else:
                 self.send(self.window[self.last_ack_num])
         self.seq_no=0
-        self.last_ack_num=0
+        self.last_ack_num=0 
         self.last_ack=None
         self.end=False
 
